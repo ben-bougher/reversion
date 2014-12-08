@@ -1,0 +1,239 @@
+{% extends "base_template.html" %} 
+{% block title %} FWI Xplore{% endblock %} 
+
+{% block content %}
+
+<!-- style for the color boxes  -->
+<head>
+  <meta http-equiv="content-type" content="text/html;charset=utf-8" />
+  <style>
+   .foo {   
+     float: left;
+     width: 20px;
+     height: 20px;     
+     margin: 2px 2px 2px 2px;
+     border-width: 1px;
+     border-style: solid;
+     border-color: rgba(0,0,0,.2);
+   }
+  </style>
+
+  <link rel="stylesheet" href="static/css/slider.css">
+</head>
+
+
+<!-- JAVASCRIPT and DATA
+================================================================ -->
+<script src="static/js/bootstrap-slider.js"></script>
+<script src="static/js/jquery.canvasjs.min.js"></script>
+
+<script>
+
+ var wmax = {{wmax}};
+ var wmin = {{wmin}};
+ var wstep = {{wstep}};
+
+ var imax = {{imax}};
+ var imin = {{imin}};
+ var istep = {{istep}};
+ 
+ var dataPoints = [];
+
+ var i = 1;
+ {%for val in misfit  %}
+ dataPoints.push({x:i, y: {{val}}})
+ i = i+1;
+ {%endfor%}
+
+ var tmax = wmax*imax;
+
+
+
+function update_plot(t){
+
+  var chart = $(".chartContainer").CanvasJSChart();
+
+  chart.options.data[1].dataPoints = [dataPoints[t]];
+  chart.render();
+ }
+
+ function get_t(w,i){
+
+   nw = (w-wmin)/wstep;
+
+   t = nw*(imax-imin+1) +i;
+   return(t);
+ };
+
+function get_gradient_file(w,i){
+  t=get_t(w,i);
+  file = "static/images/app_figures/"+ String(w) + "_"+String(i)+"_"+String(t-1+w) + "_gradient.png";
+  return(file);
+ };
+
+function get_filename(w,i){
+
+  t=get_t(w,i);
+
+
+  file = "static/images/app_figures/"+ String(w) + "_"+String(i)+"_"+String(t-1+w) + "_model.png";
+
+  return(file);
+};
+
+</script>
+
+
+<script>
+ $(document).ready(function () {
+
+   $('#w-slider').slider().on('slide', function(ev){
+   
+     var w = ev.value;
+     var i = $('#i-slider').data('slider').getValue()
+
+     active_file = get_filename(w,i);
+     gradient_file = get_gradient_file(w,i);
+
+
+     var chart = $(".chartContainer").CanvasJSChart(); 
+
+     new_t = get_t(w, i);
+     $('#t-slider').slider('setValue', new_t);
+
+     $('#inverse-model').attr('src', active_file);
+     $('#gradient').attr('src', gradient_file);
+
+     update_plot(new_t);
+   });
+
+   $('#i-slider').slider().on('slide', function(ev){
+
+   
+
+     var i = ev.value;
+     var w = $('#w-slider').data('slider').getValue();
+     var t = get_t(w,i);
+     $('#t-slider').slider('setValue', t);
+
+     active_file = get_filename(w,i);
+     gradient_file = get_gradient_file(w,i);
+
+     $('#inverse-model').attr('src', active_file);
+     $('#gradient').attr('src', gradient_file);
+     update_plot(t);
+   });
+
+   $('#t-slider').slider().on('slide', function(ev){
+
+     var t = ev.value;
+     var w = Math.ceil(t / imax);
+     if(w==1){
+       var i = t;
+     } else{
+       var i = t % ((w-1)*imax);
+     };
+
+     active_file = get_filename(w,i);
+     gradient_file = get_gradient_file(w,i);
+
+     $('#w-slider').slider('setValue', w);
+     $('#i-slider').slider('setValue', i);
+
+     $("#inverse-model").attr('src', active_file);
+     $('#gradient').attr('src', gradient_file);
+     update_plot(t);
+   }
+   );
+       $(".chartContainer").CanvasJSChart(
+    {
+       data: [
+      {
+        type: "line",
+	name: "misfit",
+        dataPoints: dataPoints
+      },
+	 {type: "scatter",
+	  name:"current",
+	  dataPoints: [{x: 1, y:dataPoints[1]}]}
+      ]
+    });
+
+    
+ })
+</script>
+
+<body>
+
+  <div class="container">
+    <div class="row">
+
+      <div class="col-md-4">
+	<div class="row-md-12">
+	  <p><b>True Model</b></p>
+	  <img src="static/images/true_model.png" id="truth-model"
+	       height=200 width=300>
+	</div>
+	<div class="row-md-12">
+	  <p><b>Misfit</b></p>
+	  <div class="chartContainer" id="chartContainer" 
+	       style="height: 300px; width: 100%;">
+	  </div>
+	</div>
+      </div>
+      <div class="col-md-4">
+	<p><b>Inversion</b></p>
+	<img src="static/images/app_figures/1_1_1_model.png" 
+	     id="inverse-model"
+	     height=200 width=300>
+
+	<div class="row-md-12">
+
+	  <label class="span2">&omega;</label>
+	  <input type="text" class="span2" value="" 
+		 data-slider-min="{{wmin}}" data-slider-max="{{wmax}}"
+		 data-slider-step="{{wstep}}" data-slider-value=1 
+		 data-slider-orientation="horizontal" 
+		 data-slider-selection="after"
+		 data-slider-tooltip="hide"
+		 id="w-slider">
+	</div>
+	<div class="row-md-12">
+	  <label>i</label>
+	  <input type="text" class="span2" value="" 
+		 data-slider-min="{{imin}}" data-slider-max="{{imax}}"
+		 data-slider-step="{{istep}}" data-slider-value="1" 
+		 data-slider-orientation="horizontal" 
+		 data-slider-selection="after"
+		 data-slider-tooltip="hide"
+		 id="i-slider">
+	</div>
+	<div class="row-md-12">
+	  <label>t</label>
+	  <input type="text" class="span2" value="" 
+		 data-slider-min="1" data-slider-max="{{wmax*imax}}" 
+		 data-slider-step="1" data-slider-value=1 
+		 data-slider-orientation="horizontal" 
+		 data-slider-selection="after"
+		 data-slider-tooltip="hide"
+		 id="t-slider">
+	</div>
+      </div>
+      <div class="col-md-4">
+	<div class="row-md-12">
+	<p><b>Initial Model</b></p>
+	<img src="static/images/initial_model.png" 
+	     id="starting-model" height=200 width=300>
+	</div>
+	<div class="row-md-12">
+	  <p><b>Gradient</b></p>
+	  <img src="static/images/app_figures/1_1_1_gradient.png"
+	       id="gradient" height=200 width=300>
+	</div>
+      </div>
+    </div>
+  </div>
+</body>
+
+
+{% endblock %}

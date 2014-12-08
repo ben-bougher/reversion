@@ -1,0 +1,690 @@
+{% extends "base_template.html" %} 
+{% block title %}Modelr &middot; Section model{% endblock %} 
+
+{% block content %}
+
+<!-- style for the color boxes  -->
+<head>
+  <style>
+   .foo {   
+     float: left;
+     width: 20px;
+     height: 20px;     
+     margin: 2px 2px 2px 2px;
+     border-width: 1px;
+     border-style: solid;
+     border-color: rgba(0,0,0,.2);
+   }
+  </style>
+  <link rel="stylesheet" href="static/css/slider.css">
+</head>
+
+
+<!-- JAVASCRIPT and DATA
+================================================================ -->
+<script src="static/js/bootstrap-slider.js"></script>
+
+
+<script>
+
+ $(document).ready(function() {
+
+
+   $('#loader').hide();
+
+   var maps = [];
+   var rocks = get_rocks("#list_of_rocks");
+
+   var rand_default = [];
+   
+   {% for im in colors %}
+   var mapping = {};
+   {% for color in (im) %}
+   var keys = Object.keys(rocks);
+   key =  keys[Math.floor((Math.random()*keys.length))];
+   rock = rocks[key];
+     mapping["{{color}}"] = {key:key,
+			     name:rock, 
+			     property: {}};
+   {% endfor %}
+   maps.push(mapping);
+   {% endfor %}
+
+   var images = [];
+   {% for image in images %}
+   images.push("{{image}}");
+   {% endfor %}
+   
+   var db_keys = [];
+   {% for key in keys %}
+   db_keys.push("{{key}}");
+   {% endfor %}
+
+   property_map = new PropertyMap(images, maps, db_keys, 0);
+
+   server = new PlotServer(host, null, null);
+
+   earth_structure = new EarthStructure(null, property_map.get_mapping(),
+					{{user.user_id}} + '.hf5');
+   
+   seismic_model = new Scenario(null, null, {},
+				null);
+   
+   seismic_model.on_change = param_changed;
+
+
+
+
+   plot_container = new Scenario(null, null, {},
+				 null);
+   plot_container.on_change = param_changed;
+
+   forward_model = new ForwardModel(null,earth_structure, 
+				    seismic_model, plot_container);
+
+   plot_container.display = display_form;
+   seismic_model.display = display_form;
+   earth_structure.display = display_form;
+
+   plot_container.script = "cross_sections.py";
+   
+   plot_container.set_current_script = function(value, argumentss,
+						plot){
+
+     // Not certain this is a safe way to set default
+     // typeof might be better
+     plot = plot || true;
+     
+     plot_container.script=value;
+     server.get_script_info(plot_container.script, 'plots',
+			    function(data){
+	 plot_container.info = data;
+	 plot_container.default_args(argumentss);
+	 
+	 console.log('div#plot_place');
+
+	 cb = function(data){
+	   plot_container.display('div#plot_place', data.metadata);
+	   plot_container.on_change();
+	   update_image(data);
+	 }
+
+	 if(plot){
+	   $('#loader').show();
+	   forward_model.post(server, cb, update=false);
+	 };
+	 
+});
+
+// Select the script in the 'select' element of this 
+     // page.  
+     $("select#select_plot option").filter(function() {
+       //may want to use $.trim in here
+       return $(this).val() == value; 
+     }).attr('selected', true);
+
+   }
+
+   seismic_model.script = "convolution_model.py";
+   seismic_model.set_current_script = function(value,
+					       argumentss){
+
+     server.get_script_info(seismic_model.script, 'seismic',
+			    function(data){
+	 seismic_model.info = data;
+	 seismic_model.default_args(argumentss);
+	 
+	 console.log('div#seismic_place');
+       });
+			    
+   update_em_list(property_map);
+   };
+   
+   earth_structure.script = "earth_model.py";
+   earth_structure.set_current_script = function(value,
+						 argumentss){
+
+     server.get_script_info(earth_structure.script, 'earth',
+			    function(data){
+	 earth_structure.info = data;
+	 earth_structure.default_args(argumentss);
+	 
+	 console.log('div#earth_properties');
+	 
+	 // This will Create a form see above
+	 earth_structure.display('div#earth_properties');
+       });
+   }
+   earth_structure.on_change = function(){
+     plot_container.set_current_script(plot_container.script, 
+				       plot_container.arguments);
+     earth_structure.set_current_script(earth_structure.script,
+					earth_structure.arguments);
+   };
+
+   window.onbeforeunload = function(){
+     forward_model.cleanUp(server);
+   };
+   
+   
+   var hash = window.location.hash.substring(1);
+   
+   if (hash != ''){
+     var params = hash.split('&');
+     image_key = params[0].split('=')[1];
+     var index = property_map.get_key_index(image_key);
+     property_map.set_index(index);
+
+     // Update the image
+     $('#myCarousel').carousel(index);
+
+     // Update the properties
+     Colors(index);
+
+     if(params.length > 1){
+       var name = params[1].split('=')[1];
+       load_fullmodel(image_key, name);
+     };
+
+   } else{
+     Colors(0);
+   };
+
+
+   // Update the available saved earth models
+   update_em_list(property_map);
+
+   // Populate the plot options
+   populate_scripts(server, 'plots', 'select#select_plot', 'Plot type');
+
+   seismic_model.set_current_script(seismic_model.script, 
+				      seismic_model.arguments);
+   plot_container.set_current_script(plot_container.script, 
+  				     plot_container.arguments,
+				     plot=false);
+   earth_structure.set_current_script(earth_structure.script,
+				      earth_structure.arguments);
+ });
+</script>
+
+<script>
+function update_em_list(property_map){
+
+  $.get('/earth_model', {image_key: property_map.get_key()},
+	function success(data){
+
+      select = $('#earth_loader')
+      select.children().remove()
+
+      select.append('<option value="null" selected hidden disabled>Load saved earth model</option>')
+      data = JSON.parse(data);
+      for (i=0; i< data.length; i++){
+	      select.append('<option value=' + data[i] +'>' + data[i]
+		       +'</option>')
+        };
+  });
+};
+
+function update_image(data){
+  $('img#plot_image').attr('src', 
+			    "data:image/png;base64, " + 
+			    data.data, "json"); 
+  $('#loader').hide();
+};
+
+function param_changed(){
+
+    $('#loader').show();
+    forward_model.post(server, update_image, update=false);
+};
+
+// START OF DISPLAY METADATA *****
+function display_metadata(data){
+  // This function displays the elastic moduli for each model
+
+  // Define a couple of helper functions
+  // There may be a more elegant way to do this...
+  var replacer2 = function(key, val) {
+    return val.toFixed ? Number(val.toFixed(2)) : val;
+  }
+
+  var replacer4 = function(key, val) {
+    return val.toFixed ? Number(val.toFixed(4)) : val;
+  }
+
+  // We'll start a table, then append into it...
+  var $table = $('<table id="model_metadata"></table>').addClass('table table-striped');
+
+    // Build the head, with the column titles
+    // This styling should move to modelr.css
+    $table.append('<thead><tr></tr></thead>'); 
+    $table.append('<th></th>'); 
+    $table.append('<th class="text-right" style="padding:0 8px 0 0;">Z<br /><span style="color:lightgrey; font-weight:normal;">Pa·s·m<sup>−1</sup></span></th>'); 
+    $table.append('<th style="text-align:right; padding:0 8px 0 0;">PR</th>'); 
+    $table.append('<th style="text-align:right; padding:0 8px 0 0;">E<br /><span style="color:lightgrey; font-weight:normal;">GPa</span></th>'); 
+    $table.append('<th style="text-align:right; padding:0 8px 0 0;">&lambda;<br /><span style="color:lightgrey; font-weight:normal;">GPa</span></th>'); 
+    $table.append('<th style="text-align:right; padding:0 8px 0 0;">&mu;<br /><span style="color:lightgrey; font-weight:normal;">GPa</span></th>'); 
+    $table.append('<th style="text-align:right; padding:0 8px 0 0;">K<br /><span style="color:lightgrey; font-weight:normal;">GPa</span></th>'); 
+    $table.append('<th style="text-align:right; padding:0 8px 0 0;">M<br /><span style="color:lightgrey; font-weight:normal;">GPa</span></th>'); 
+
+    // Build the body; start with tag, then append into it
+    $table.append('<tbody></tbody>'); 
+
+    for (rock in data['moduli']){
+      var row = $('<tr class="text-right"></tr>');
+      row.append('<td style="text-align:left;">' + rock + '</td>');
+      row.append('<td>' + JSON.stringify(data['moduli'][rock]['imp']/1000000, replacer2) + '</td>');
+      row.append('<td>' + JSON.stringify(data['moduli'][rock]['pr'], replacer4) + '</td>');
+      row.append('<td>' + JSON.stringify(data['moduli'][rock]['youngs']/1000000000, replacer2) + '</td>');
+      row.append('<td>' + JSON.stringify(data['moduli'][rock]['lam']/1000000000, replacer2) + '</td>');
+      row.append('<td>' + JSON.stringify(data['moduli'][rock]['mu']/1000000000, replacer2) + '</td>');
+      row.append('<td>' + JSON.stringify(data['moduli'][rock]['bulk']/1000000000, replacer2) + '</td>');
+      row.append('<td>' + JSON.stringify(data['moduli'][rock]['pmod']/1000000000, replacer2) + '</td>');
+
+      $table.append(row);
+    }
+
+    // Finally replace the div with the table
+    $('#model_metadata').replaceWith($table);
+
+};
+// END OF DISPLAY METADATA *****
+
+ function update_model(){
+
+   cb = function(data){
+
+     // This will Create a form see above
+     seismic_model.display('div#seismic_place', 
+			   metadata=data.metadata);
+     // This will Create a form see above
+     plot_container.display('div#plot_place',
+          metadata=data.metadata);
+     
+     update_image(data);
+     display_metadata(data.metadata);
+
+   };
+
+   $("#loader").show();
+   forward_model.post(server, cb, update=true);
+
+   $("html, body").scrollTop($("#plot_header").offset().top);
+ };
+
+ function save_earthmodel(){
+   var image_key = property_map.get_key();
+   var name = forward_model.earth_struct.name;
+
+   $.post('/earth_model', {image_key: image_key,
+			   name: name,
+			   json:JSON.stringify(forward_model.earth_struct)},
+	  function callback(data){
+       update_em_list(property_map)});
+ };
+
+ function load_earthmodel(name){
+   var image_key = property_map.get_key();
+   $.get('/earth_model',{image_key: image_key,
+			 name: name},
+	 function callback(data) {
+       data = JSON.parse(data);
+       if(data["failed"]){
+	 Colors(0);
+       } else{
+       property_map.set_current_map(data.mapping);
+	 forward_model.earth_struct.set_current_script(forward_model.earth_struct.script,
+						       data.arguments);
+       Colors(0);
+       };
+     });
+ };
+
+ function load_fullmodel(image_key, model_name){
+   // set the property map index
+   index = property_map.get_key_index(image_key);
+   property_map.set_index(index);
+
+   load_earthmodel(model_name);
+};
+
+</script>
+<script>
+
+function Colors(increment){
+   var div = $("#color_map");
+   var foo;
+   var div,row, dropdown, option, text;
+   var rocks = get_rocks('datalist#list_of_rocks');
+
+   var index = $('#myCarousel .active').index('#myCarousel .item') + 
+					      increment;
+
+   var length = property_map.n_maps();
+
+   index = index % length; 
+
+   if(index < 0){
+     index = length-1;
+   };
+
+   property_map.set_index(index);
+   forward_model.earth_struct.image = property_map.get_image();
+   forward_model.earth_struct.mapping = property_map.get_mapping();
+   
+   div.children().remove();
+
+   form = div.append('<form id=script_form action=""></form>');
+
+   form_text='<div col-md-3>';
+   c = property_map.get_colours();
+
+   update_map = function (input, colour){
+     property_map.update_mapping(colour, rocks[input], input);
+     forward_model.earth_struct.mapping = property_map.get_mapping();
+   }; 
+
+   if( increment != 0 ){
+     update_em_list(property_map);
+   };
+
+   for (var i=0; i < c.length; i++){
+
+     colour = c[i];
+     form_text += '<div style="margin:6px 0 6px 0;" class="row">';
+     form_text += '<div class=foo style="margin:0 6px 0 0; background-color:' + c[i] +'; display: inline-block;"></div>';
+
+     form_text += '<select id='+c[i]+' onchange="update_map(this.value, this.id)">'
+     
+     for (var j in rocks) {
+       selected = forward_model.earth_struct.mapping[c[i]].key;
+       if (j == selected){
+	 form_text += '<option value="' + j +'" selected>'+rocks[j]+'</option>' ;
+       }
+       else{
+	 form_text += '<option value="' + j +'">'+rocks[j]+'</option>' ;
+       }
+     }
+     form_text += '</select></div>';
+   }
+   form_text+='</div>';
+   form.append(form_text);
+}
+</script>
+
+<script>
+ var host = '{{HOSTNAME}}';
+</script>
+
+<script>
+
+// Provides the CSV export
+
+$(document).ready(function () {
+
+    function exportTableToCSV($table, filename) {
+
+        var $rows = $table.find('tr:has(td)'),
+
+            // Temporary delimiter characters unlikely to be typed by keyboard
+            // This is to avoid accidentally splitting the actual contents
+            tmpColDelim = String.fromCharCode(11), // vertical tab character
+            tmpRowDelim = String.fromCharCode(0), // null character
+
+            // actual delimiter characters for CSV format
+            colDelim = '","',
+            rowDelim = '"\r\n"',
+
+            // Grab text from table into CSV formatted string
+            csv = '"' + $rows.map(function (i, row) {
+                var $row = $(row),
+                    $cols = $row.find('td');
+
+                return $cols.map(function (j, col) {
+                    var $col = $(col),
+                        text = $col.text();
+
+                    return text.replace('"', '""'); // escape double quotes
+
+                }).get().join(tmpColDelim);
+
+            }).get().join(tmpRowDelim)
+                .split(tmpRowDelim).join(rowDelim)
+                .split(tmpColDelim).join(colDelim) + '"',
+
+            // Data URI
+            csvData = 'data:application/csv;charset=utf-8,' + encodeURIComponent(csv);
+
+        $(this)
+            .attr({
+            'download': filename,
+                'href': csvData,
+                'target': '_blank'
+        });
+    }
+
+    // This must be a hyperlink
+    $(".export").click(function (event) {
+        // CSV
+        exportTableToCSV.apply(this, [$('#dvData>table'), 'export.csv']);
+        
+        // IF CSV, don't do event.preventDefault() or return false
+        // We actually need this to be a typical hyperlink
+    });
+});
+</script>
+
+<!-- BUILD PAGE
+==================================================================-->
+
+<div class="container">
+
+  <!-- DISPLAY ERRORS, IF ANY
+  ===========================-->
+
+  {% if error %}
+  <div class="alert alert-danger">
+    <strong>Something's wrong...</strong> {{ error }}
+  </div>
+  {% endif %}
+
+  <!-- POPULATE LIST OF ROCKS
+  ===========================-->
+  <!-- This will expand the list of rocks before google app engine 
+  sends this page to the user -->
+  <!-- This list is used by javascript and not directly 
+  seen by the user -->
+  <datalist id="list_of_rocks">
+    {% for rock in rocks %}
+    <option data-value="{{rock.key().id()}}"
+	    data-name="{{rock.name}}">{{rock.name}}</option>
+    {% endfor %}
+  {% for group in group_rocks %}
+  {% for rock in group.rocks %}
+  <option data-value="{{rock.key().id()}}"
+	  data-name="{{rock.name}}">
+    {{rock.name}}
+  </option>
+  {% endfor %}
+  {% endfor %}
+    {% for rock in default_rocks %}
+    <option data-value="{{rock.key().id()}}"
+	    data-name="{{rock.name}}">{{rock.name}}</option>
+    {% endfor %}
+  </datalist>
+
+  <!-- MODEL PANEL
+  =============================================================== -->
+
+
+    <div class="panel panel-default">
+
+      <div class="panel-heading">
+        <h3 class="panel-title">Model</h3>
+      </div>
+
+      <div class="panel-body">
+
+        <!-- LEFT HAND col
+        ============================= -->
+        <div class="col-md-8">
+
+
+      	  <form style="float:right;" action="{{upload_url}}" method="POST" enctype="multipart/form-data">
+      	    <div style='height: 0px;width:0px; overflow:hidden;'>
+      	      <input type="submit" name="submit" value="Submit" id="submit">
+      	      <input id="file" type="file" name="file" onchange="$('#submit').click()"/>
+            </div>
+      	    <div class="btn btn-info" id="upload_btn" onclick="$('#file').click()">
+      		    Upload image
+      	    </div> 
+      	    <button type="button" class="btn btn-info" onclick="window.location.href='/model_builder'">
+      		    Make a wedge
+      	    </button>
+      	  </form>
+
+<div class="col-xs-offset-11">
+<span style="color:#aaa; font-size:200%; vertical-align:middle; top:4px" id="model_info" class="glyphicon glyphicon-info-sign" data-title="Models" data-content="Choose a model framework from the carousel below, or use the buttons to the right to upload an image or create a new model with the model builder. then assign the model's rocks and other parameters in the panel to the right."></span>
+          </div>
+<script>
+$('#model_info').popover({
+        trigger: 'hover click', 
+        html: true,
+        placement: 'right', 
+        container: 'body',
+        delay: { show: 500, hide: 1000 }
+});
+</script>
+
+	        <div id="myCarousel" class="carousel slide" data-interval="false" style="margin-top:20px; width:100%; height:100%">
+            <form class="form-horizontal" role="form">
+
+	            <!-- Carousel slides -->
+	            <div class="carousel-inner">
+        		    {% for i in range((images.__len__())) %}
+        		    <div {% if i==0 %} class="active item" {% else %} 
+        		      class="item" {% endif %}>
+        		      <div class="thumbnail">
+        			      <img src={{images[i]}} alt="" >
+        		      </div>
+        		    </div>	
+        		    {% endfor %}
+        		  </div>
+	  
+        		  <!-- Carousel nav -->
+        		  <a class="carousel-control left" href="#myCarousel" 
+        		     data-slide="prev" 
+        		     onclick="Colors(-1)">
+                 <span class="glyphicon glyphicon-chevron-left"></span>
+        		  </a>
+        		  <a class="carousel-control right" href="#myCarousel" 
+        		     data-slide="next" 
+        		     onclick="Colors(1)">
+                 <span class="glyphicon glyphicon-chevron-right"></span>
+        		  </a>
+              <!-- END Carousel nav -->
+
+              </form>
+	        </div> <!-- END of carousel -->
+        </div> <!-- END of col -->
+
+        <!-- RIGHT HAND col
+        ==============================-->
+        <div class="col-md-4">
+
+        <div style="margin-top:48px;" class="well well-sm"><strong>Assign rocks to the model framework</strong></div>
+
+          <!-- Earth Model Properties -->
+      		<select class="form-control" id="earth_loader"
+      			  onchange="load_earthmodel(this.value, property_map, forward_model)"
+      			  placeholder="earth model name">
+      		    <option value=""></option>
+      		</select>
+
+      		<div style="margin:14px 0 14px 12px;" id="color_map"></div>
+
+          <!-- Earth Model Properties -->
+          <div style="margin:36px 0 16px 0;" id="earth_properties"></div>
+
+            <fieldset{% if not user %} disabled{% endif %}>
+            <form class="form-horizontal">
+            <div class="form-group">
+  	            <div class="col-sm-10">
+  	              <input {% if not user %}style="background-color:#bbb;" {% endif %}class="form-control" 
+  		               id='earth_model_name' 
+  	                 onchange="forward_model.earth_struct.name = this.value"
+  		               placeholder="Earth model name" 
+  		               maxlength="20">
+  	            </div>
+  	            <div class="col-sm-offset-10">
+  	              <button class="btn btn-default" 
+  		               onclick="save_earthmodel()"
+  		               type="button" id="saveearthbutton">
+  	                save
+  	              </button>
+  	            </div>
+            </div> <!-- END of form-group -->
+            </form>
+            </fieldset>
+
+	    
+            <div class="form-group">
+	      
+              <button class="btn btn-primary" id='create_image' 
+                  style="postion: absolute; top: 50%"
+                  onclick="update_model()">
+                Update plot
+              </button>
+            </div>
+
+          </div> <!-- END of col -->
+
+      </div> <!-- End of panel-body -->
+    </div> <!-- End of panel -->
+
+
+    <div class="panel panel-default">
+      <div class="panel-heading">
+	      <h3 class="panel-title" id="plot_header">Result</h3>
+      </div>
+      <div class="panel-body">
+	      <div class="col-md-8">
+		
+	        <img class="img-thumbnail" id="plot_image" href=URL alt="" 
+	           src="/static/img/placeholder_model_image.png" 
+	           height=800, width=1200 />
+	        <img style="position:absolute;top:0;left:0" id="loader" src="/static/img/ajax-loader.gif" />
+	        <!-- Updated by the  create_image button above-->
+	      </div>
+	      
+        <div class="col-md-4">
+
+	      <select class="form-control" id="select_plot" 
+		      onchange="plot_container.set_current_script($(this).val(), plot_container.arguments)">
+              </select>
+                
+	        <div id="plot_place" style="margin-top:24px;"></div>
+	          <!-- This is where the survey parameters will be set -->
+	        <div style="margin-top:24px;" id="seismic_place"></div>
+
+	      </div>
+	
+      </div>
+    </div>
+
+    <div class="panel panel-default">
+      <div class="panel-heading">
+      <div style="float:right; margin-top:-2px;"><a class="btn btn-default btn-xs export" href="#">Export CSV</a></div>
+        <h3 class="panel-title">Metadata</h3>
+      </div>
+      <div class="panel-body" id="dvData">
+
+           <div id="model_metadata"></div>
+          
+      </div> <!-- end of panel body -->
+    </div> <!-- end of panel -->
+
+
+</div>
+
+{% endblock %}

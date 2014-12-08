@@ -1,0 +1,179 @@
+import webapp2
+from os.path import join, dirname
+from jinja2 import Environment, FileSystemLoader
+from webob.static import DirectoryApp
+from paste.cascade import Cascade
+from paste.urlparser import StaticURLParser
+
+env = Environment(loader=FileSystemLoader(join(dirname(__file__),
+                                               'templates')))
+image_dir  = "static/images"
+
+def filename(w,n,n_tot):
+
+    return os.path.join(image_dir, "Bond.png")
+
+
+import webapp2
+from os.path import join, dirname
+from jinja2 import Environment, FileSystemLoader
+from webob.static import DirectoryApp
+from paste.cascade import Cascade
+from paste.urlparser import StaticURLParser
+
+env = Environment(loader=FileSystemLoader(join(dirname(__file__),
+                                               'templates')))
+image_dir  = "static/images"
+
+def filename(w,n,n_tot):
+
+    return os.path.join(image_dir, "Bond.png")
+
+class MainHandler(webapp2.RequestHandler):
+
+    def get(self):
+
+        true_model = join(image_dir, "Bond.png")
+        initial_model = join(image_dir, "Bond.png")
+        inverse_model = initial_model
+        
+
+        template = env.get_template("xplore.html")
+        html = template.render(initial_model=initial_model,
+                               true_model=true_model,
+                               inverse_model=inverse_model)
+        
+        self.response.write(html)
+
+
+class ImageHandler(webapp2.RequestHandler):
+
+    def get(self):
+
+        w = self.request.get("w")
+        n = self.request.get("n")
+
+        n_tot = self.request.get("n_tot")
+
+        try:
+            
+            imageFileName = filename(w,n,n_tot)
+            with open(imageFileName, 'rb') as i:
+                imageBytes = i.read()
+
+                reply = webapp2.Response()
+                reply.content_type = "image/png"
+                reply.write(imageBytes)
+                return reply
+        except Exception as e:
+            self.response.set_status(500)
+
+        
+
+
+            
+     
+             
+# Create an app to serve static files
+# Choose a directory separate from your source (e.g., "static/")
+# so it isn't dl'able
+static_app = StaticURLParser("static/")
+
+web_app  = webapp2.WSGIApplication([
+    ('/', MainHandler)],
+    debug=True)
+
+# Create a cascade that looks for static files first, then tries the webapp
+app = Cascade([static_app, web_app])
+
+def main():
+    from paste import httpserver
+    httpserver.serve(app,host='127.0.0.1', port='8080')
+
+    
+if __name__ == '__main__':
+    main()
+
+# Deal with static resources like CSS, JS, etc.
+class StaticHandler(Handler):
+def get(self, file):
+abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__),'assets', file))
+if os.path.isdir(abs_path) or abs_path.find(os.getcwd()) != 0:
+self.response.set_status(403)
+return
+try:
+f = open(abs_path, 'r')
+self.response.content_type = mimetypes.guess_type(abs_path)[0]
+self.response.out.write(f.read())
+f.close()
+except:
+self.response.set_status(404)
+
+class StaticHandler(Handler):
+    def get(self, file):
+        abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__),'static', file))
+        if os.path.isdir(abs_path) or abs_path.find(os.getcwd()) != 0:
+            self.response.set_status(403)
+            return
+        try:
+            f = open(abs_path, 'r')
+            self.response.content_type = mimetypes.guess_type(abs_path)[0]
+            self.response.out.write(f.read())
+            f.close()
+        except:
+            self.response.set_status(404)
+            
+class MainHandler(webapp2.RequestHandler):
+
+    def get(self):
+
+        true_model = join(image_dir, "Bond.png")
+        initial_model = join(image_dir, "Bond.png")
+        inverse_model = initial_model
+        
+
+        template = env.get_template("xplore.html")
+        html = template.render(initial_model=initial_model,
+                               true_model=true_model,
+                               inverse_model=inverse_model)
+        
+        self.response.write(html)
+
+
+class ImageHandler(webapp2.RequestHandler):
+
+    def get(self):
+
+        w = self.request.get("w")
+        n = self.request.get("n")
+
+        n_tot = self.request.get("n_tot")
+
+        try:
+            
+            imageFileName = filename(w,n,n_tot)
+            with open(imageFileName, 'rb') as i:
+                imageBytes = i.read()
+
+                reply = webapp2.Response()
+                reply.content_type = "image/png"
+                reply.write(imageBytes)
+                return reply
+        except Exception as e:
+            self.response.set_status(500)
+
+
+web_app  = webapp2.WSGIApplication([
+    ('/', MainHandler)
+    (r'/static(.+)', StaticHandler)],
+    debug=True)
+
+
+
+def main():
+    from paste import httpserver
+    httpserver.serve(app,host='127.0.0.1', port='8080')
+
+    
+if __name__ == '__main__':
+    main()    
