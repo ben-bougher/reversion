@@ -22,7 +22,8 @@ class MainHandler(webapp2.RequestHandler):
         
         # Slider limits
         wmin = 1
-        wmax = 30
+        
+        wmax = 59
         wstep = 1
         
         imax = 10
