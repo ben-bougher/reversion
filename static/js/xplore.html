@@ -1,12 +1,11 @@
 {% extends "base_template.html" %} 
-{% block title %}Inversion Perversion{% endblock %} 
+{% block title %} FWI Xplore{% endblock %} 
 
 {% block content %}
 
 <!-- style for the color boxes  -->
 <head>
-  <meta http-equiv="content-type" 
-	content="text/html;charset=utf-8" />
+  <meta http-equiv="content-type" content="text/html;charset=utf-8" />
   <style>
    .foo {   
      float: left;
@@ -54,7 +53,7 @@ function update_plot(t){
 
   var chart = $(".chartContainer").CanvasJSChart();
 
-  chart.options.data[1].dataPoints = [dataPoints[t-1]];
+  chart.options.data[1].dataPoints = [dataPoints[t]];
   chart.render();
  }
 
@@ -82,89 +81,6 @@ function get_filename(w,i){
   return(file);
 };
 
- function w_play(){
-
-  var i = $("#i-slider").data('slider').getValue();
-   var w = wmin;
-   (function theLoop (w) {
-     setTimeout(function () {
-
-       $('#w-slider').slider('setValue', w);
-       var t = get_t(w,i);
-       $('#t-slider').slider('setValue',t);
-       update_plot(t);
-
-       active_file = get_filename(w,i);
-       gradient_file = get_gradient_file(w,i);
-
-       $('#inverse-model').attr('src', active_file);
-       $('#gradient').attr('src', gradient_file);
-
-       if(w < wmax) {
-         w += wstep;
-	 theLoop(w);  // Call the loop again
-       }
-     }, 300);
-   })(w);
-};
-
- function i_play(){
-
-  var w = $("#w-slider").data('slider').getValue();
-   var i = imin;
-   (function theLoop (i) {
-     setTimeout(function () {
-
-       $('#i-slider').slider('setValue', i);
-       var t = get_t(w,i);
-       $('#t-slider').slider('setValue',t);
-       update_plot(t);
-
-       active_file = get_filename(w,i);
-       gradient_file = get_gradient_file(w,i);
-
-       $('#inverse-model').attr('src', active_file);
-       $('#gradient').attr('src', gradient_file);
-
-       if(i < imax) {
-         i += istep;
-	 theLoop(i);  // Call the loop again
-       }
-     }, 300);
-   })(i);
-};
-
- function t_play(){
-
-   var t = 1;
-   (function theLoop (t) {
-     setTimeout(function () {
-
-       var w = Math.ceil(t / imax);
-       if(w==1){
-	 var i = t;
-       } else{
-	 var i = t % ((w-1)*imax);
-       };
-
-       $('#i-slider').slider('setValue', i);
-       $('#w-slider').slider('setValue',w);
-       $('#t-slider').slider('setValue',t);
-       update_plot(t);
-
-       active_file = get_filename(w,i);
-       gradient_file = get_gradient_file(w,i);
-
-       $('#inverse-model').attr('src', active_file);
-       $('#gradient').attr('src', gradient_file);
-
-       if(t < tmax) {
-         t += 1;
-	 theLoop(t);  // Call the loop again
-       }
-     }, 300);
-   })(t);
-};
 </script>
 
 
@@ -177,12 +93,10 @@ function get_filename(w,i){
      var i = $('#i-slider').data('slider').getValue()
 
      active_file = get_filename(w,i);
-     gradient_file = get_gradient_file(w,i);
+     gradient_file = get_gradient_file(w,i); 
 
+     var new_t = get_t(w, i);
 
-     var chart = $(".chartContainer").CanvasJSChart(); 
-
-     new_t = get_t(w, i);
      $('#t-slider').slider('setValue', new_t);
 
      $('#inverse-model').attr('src', active_file);
@@ -244,9 +158,6 @@ function get_filename(w,i){
     });
 
     
-
-
-
  })
 </script>
 
@@ -277,7 +188,6 @@ function get_filename(w,i){
 	<div class="row-md-12">
 
 	  <label class="span2">&omega;</label>
-	  
 	  <input type="text" class="span2" value="" 
 		 data-slider-min="{{wmin}}" data-slider-max="{{wmax}}"
 		 data-slider-step="{{wstep}}" data-slider-value=1 
@@ -285,17 +195,9 @@ function get_filename(w,i){
 		 data-slider-selection="after"
 		 data-slider-tooltip="hide"
 		 id="w-slider">
-	  <button type="button" id="w-play" onclick="w_play()" 
-		  class="btn btn-default btn-xs" 
-		  aria-label="Left Align">
-	    <span class="glyphicon glyphicon-play" 
-		  aria-hidden="true"></span>
-	  </button>
 	</div>
 	<div class="row-md-12">
-	
 	  <label>i</label>
-	  
 	  <input type="text" class="span2" value="" 
 		 data-slider-min="{{imin}}" data-slider-max="{{imax}}"
 		 data-slider-step="{{istep}}" data-slider-value="1" 
@@ -303,17 +205,9 @@ function get_filename(w,i){
 		 data-slider-selection="after"
 		 data-slider-tooltip="hide"
 		 id="i-slider">
-	  <button type="button" id="i-play" 
-		  class="btn btn-default btn-xs" 
-		  aria-label="Left Align"
-		  onclick="i_play()">
-	    <span class="glyphicon glyphicon-play" 
-		  aria-hidden="true"></span>
-	  </button>	
 	</div>
 	<div class="row-md-12">
 	  <label>t</label>
-	  
 	  <input type="text" class="span2" value="" 
 		 data-slider-min="1" data-slider-max="{{wmax*imax}}" 
 		 data-slider-step="1" data-slider-value=1 
@@ -321,13 +215,6 @@ function get_filename(w,i){
 		 data-slider-selection="after"
 		 data-slider-tooltip="hide"
 		 id="t-slider">
-	  <button type="button" id="t-play" 
-		  class="btn btn-default btn-xs" 
-		  aria-label="Left Align"
-		  onclick="t_play()">
-	    <span class="glyphicon glyphicon-play" 
-		  aria-hidden="true"></span>
-	  </button>	
 	</div>
       </div>
       <div class="col-md-4">

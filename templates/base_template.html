@@ -17,6 +17,10 @@
 
 <!-- Fonts -->
 <link href='https://fonts.googleapis.com/css?family=Montserrat:400,700' rel='stylesheet' type='text/css'>
+ <!-- JQuery -->
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+  <link rel="stylesheet" href="//ajax.googleapis.com/ajax/libs/jqueryui/1.11.2/themes/smoothness/jquery-ui.css" />
+  <script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.11.2/jquery-ui.min.js"></script>
 
 
 <style type="text/css">
@@ -44,5 +48,33 @@ border-right: 1px solid #FFF;
 </head>
 
 <body>
+ <!-- Navbar --> 
+  <div class="navbar-wrapper">
+    <div class="container">  
+      <nav class="navbar navbar-default" role="navigation">
+          <strong>
+	    <span class="navbar-brand pt-title" 
+		  style="font-family: 'Nunito', sans-serif;">
+	      inversion-perversion
+	    </span>
+	  </strong>
+          <ul class="nav navbar-nav hidden-xs">
+            <li>
+	      <p class="navbar-text pt-subtitle">
+		glass box modelling
+	      </p>
+	    </li>
+          </ul>
+	  <ul class="nav navbar-nav hidden-xs">
+            <li>
+	      <p class="navbar-text pt-subtitle">
+		<i>"Peeping on algorithms since 2014"</i>
+	      </p>
+	    </li>
+          </ul>
+      </nav>
+    </div>
+  </div>
+
   {% block content %} CONTENT GOES HERE {% endblock %}
 </body>

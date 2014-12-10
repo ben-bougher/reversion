@@ -23,7 +23,7 @@ class MainHandler(webapp2.RequestHandler):
         # Slider limits
         wmin = 1
         
-        wmax = 59
+        wmax = 20
         wstep = 1
         
         imax = 10
@@ -40,7 +40,7 @@ class MainHandler(webapp2.RequestHandler):
         template = env.get_template("xplore.html")
         html = template.render(wmin=wmin, wmax=wmax, wstep=wstep,
                                imin=imin, imax=imax, istep=istep,
-                               misfit=misfit)
+                               misfit=misfit[0:wmax*imax])
 
 
         
